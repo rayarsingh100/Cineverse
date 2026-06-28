@@ -1,22 +1,65 @@
 import Navbar from "../../../../components/layout/navbar";
-import { movies } from "../../../../constants/movies";
+import {
+    getMovieDetails,
+    getMovieCredits,
+    getMovieVideos,
+} from "../../../../lib/tmdb";
+import Link from "next/link";
+import type {
+    CastMember,
+    Credits,
+    VideosResponse,
+} from "../../../../types/tmdb";
+import { theaters } from "../../../../constants/movies";
 
 export default async function MovieDetailsPage({
     params,
 }: {
     params: Promise<{ id: string }>;
 }) {
-    const { id } = await params;
+   const { id } = await params;
 
-    const movie = movies[id as keyof typeof movies];
+   const movie = await getMovieDetails(id);
 
-    if (!movie) {
-        return (
-            <main className="flex min-h-screen items-center justify-center bg-black text-white">
-                <h1 className="text-4xl font-bold">Movie Not Found</h1>
-            </main>
-        );
-    }
+   const staticMovie =
+       movie[
+           movie.title
+               .toLowerCase()
+               .replace(/:/g, "")
+               .replace(/\s+/g, "-") as keyof typeof movie
+       ];
+
+   const credits: Credits = await getMovieCredits(id);
+
+   const videos: VideosResponse = await getMovieVideos(id);
+       console.log(movie.title);
+       console.log(movie.id);
+       console.log(videos.results);
+   const cast: CastMember[] = credits.cast.slice(0, 4);
+
+   const director =
+       credits.crew?.find((person) => person.job === "Director")?.name || "N/A";
+
+   const writers =
+       credits.crew
+           ?.filter(
+               (person) =>
+                   person.job === "Writer" || person.job === "Screenplay",
+           )
+           .map((person) => person.name)
+           .join(", ") || "N/A";
+
+   const trailer = videos.results.find(
+       (video) => video.type === "Trailer" && video.site === "YouTube",
+   );
+
+   if (!movie?.id) {
+       return (
+           <main className="flex min-h-screen items-center justify-center bg-black text-white">
+               <h1 className="text-4xl font-bold">Movie Not Found</h1>
+           </main>
+       );
+   }
 
     return (
         <main className="relative min-h-screen overflow-hidden bg-zinc-950">
@@ -26,7 +69,7 @@ export default async function MovieDetailsPage({
                 <div
                     className="absolute inset-0 bg-cover bg-center bg-no-repeat"
                     style={{
-                        backgroundImage: `url(${movie.backdrop})`,
+                        backgroundImage: `url(https://image.tmdb.org/t/p/original${movie.backdrop_path})`,
                     }}
                 />
 
@@ -60,37 +103,53 @@ export default async function MovieDetailsPage({
 
                                 {/* Metadata */}
                                 <div className="mt-5 flex flex-wrap items-center gap-3 text-sm font-medium text-zinc-300">
-                                    <span>{movie.year}</span>
-
-                                    <span className="h-1 w-1 rounded-full bg-zinc-500" />
-
-                                    <span>{movie.genres}</span>
-
-                                    <span className="h-1 w-1 rounded-full bg-zinc-500" />
-
-                                    <span className="text-yellow-400">
-                                        ⭐ {movie.rating}
+                                    <span>
+                                        {movie.release_date?.split("-")[0]}
                                     </span>
 
                                     <span className="h-1 w-1 rounded-full bg-zinc-500" />
 
-                                    <span>{movie.duration}</span>
+                                    <span>
+                                        {movie.genres
+                                            .map(
+                                                (g: { name: string }) => g.name,
+                                            )
+                                            .join(", ")}
+                                    </span>
+
+                                    <span className="h-1 w-1 rounded-full bg-zinc-500" />
+
+                                    <span className="text-yellow-400">
+                                        ⭐ {movie.vote_average.toFixed(1)}
+                                    </span>
+
+                                    <span className="h-1 w-1 rounded-full bg-zinc-500" />
+
+                                    <span>{movie.runtime} min</span>
                                 </div>
 
                                 {/* Description */}
                                 <p className="mt-7 max-w-xl text-base leading-relaxed text-zinc-300 sm:text-lg lg:text-xl">
-                                    {movie.description}
+                                    {movie.overview}
                                 </p>
 
                                 {/* Buttons */}
                                 <div className="mt-10 flex flex-wrap gap-4">
-                                    <button className="cursor-pointer rounded-xl bg-orange-600 px-8 py-4 text-sm font-semibold text-white transition-all duration-300 hover:scale-105 hover:bg-orange-700">
+                                    {/* Scroll to Theater Section */}
+                                    <a
+                                        href="#theater-section"
+                                        className="cursor-pointer rounded-xl bg-orange-600 px-8 py-4 text-sm font-semibold text-white transition-all duration-300 hover:scale-105 hover:bg-orange-700"
+                                    >
                                         Book Tickets
-                                    </button>
+                                    </a>
 
-                                    <button className="rounded-xl border border-white/10 bg-white/5 px-8 py-4 text-sm font-semibold text-white backdrop-blur-md transition-all duration-300 hover:border-white/30 hover:bg-white/10">
+                                    {/* Scroll to Trailer Section */}
+                                    <a
+                                        href="#trailer-section"
+                                        className="rounded-xl border border-white/10 bg-white/5 px-8 py-4 text-sm font-semibold text-white backdrop-blur-md transition-all duration-300 hover:border-white/30 hover:bg-white/10"
+                                    >
                                         Watch Trailer
-                                    </button>
+                                    </a>
                                 </div>
                             </div>
                         </div>
@@ -113,7 +172,14 @@ export default async function MovieDetailsPage({
                         <p className="text-sm text-zinc-500">Release Date</p>
 
                         <h3 className="mt-2 text-lg font-semibold text-white">
-                            {movie.releaseDate}
+                            {new Date(movie.release_date).toLocaleDateString(
+                                "en-IN",
+                                {
+                                    day: "numeric",
+                                    month: "long",
+                                    year: "numeric",
+                                },
+                            )}
                         </h3>
                     </div>
 
@@ -121,7 +187,7 @@ export default async function MovieDetailsPage({
                         <p className="text-sm text-zinc-500">Director</p>
 
                         <h3 className="mt-2 text-lg font-semibold text-white">
-                            {movie.director}
+                            {director}
                         </h3>
                     </div>
 
@@ -129,7 +195,7 @@ export default async function MovieDetailsPage({
                         <p className="text-sm text-zinc-500">Writers</p>
 
                         <h3 className="mt-2 text-lg font-semibold text-white">
-                            {movie.writers}
+                            {writers}
                         </h3>
                     </div>
 
@@ -137,13 +203,18 @@ export default async function MovieDetailsPage({
                         <p className="text-sm text-zinc-500">Box Office</p>
 
                         <h3 className="mt-2 text-lg font-semibold text-white">
-                            {movie.boxOffice}
+                            {movie.revenue && movie.revenue > 0
+                                ? `$${movie.revenue.toLocaleString()}`
+                                : "N/A"}
                         </h3>
                     </div>
                 </div>
             </section>
 
-            <section className="bg-zinc-950 px-6 py-12 sm:px-10 lg:px-16">
+            <section
+                className="bg-zinc-950 px-6 py-12 sm:px-10 lg:px-16"
+                id="trailer-section"
+            >
                 <div className="grid gap-10 lg:grid-cols-3">
                     {/* Trailer */}
                     <div>
@@ -151,33 +222,30 @@ export default async function MovieDetailsPage({
                             Trailer
                         </h2>
 
-                        <div className="relative h-64 overflow-hidden rounded-3xl">
-                            {/* Thumbnail */}
-                            <img
-                                src="https://images.thedirect.com/media/article_full/the-flash-movie-trailer-release-date.jpg"
-                                alt="Trailer"
-                                className="h-full w-full object-cover"
-                            />
+                        <div className="overflow-hidden rounded-3xl">
+                            {trailer ? (
+                                <iframe
+                                    className="h-64 w-full rounded-3xl"
+                                    src={`https://www.youtube.com/embed/${trailer.key}`}
+                                    title="Movie Trailer"
+                                    allowFullScreen
+                                />
+                            ) : (
+                                <div className="flex h-64 flex-col items-center justify-center rounded-3xl bg-zinc-900 text-zinc-400">
+                                    <p>Trailer Coming Soon 🎬</p>
 
-                            {/* Dark Overlay */}
-                            <div className="absolute inset-0 bg-black/35" />
-
-                            {/* Play Button */}
-                            <button className="absolute left-1/2 top-1/2 flex h-16 w-16 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/30 bg-white/10 text-2xl text-white backdrop-blur-md transition hover:scale-110">
-                                ▶
-                            </button>
-
-                            {/* Bottom Text */}
-                            <div className="absolute bottom-4 left-4 text-white">
-                                <p className="font-semibold">
-                                    Official Trailer
-                                </p>
-                            </div>
-
-                            {/* Duration */}
-                            <div className="absolute bottom-4 right-4 text-sm text-zinc-300">
-                                2:24
-                            </div>
+                                    <a
+                                        href={`https://www.youtube.com/results?search_query=${encodeURIComponent(
+                                            `${movie.title} official trailer`,
+                                        )}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="mt-4 rounded-xl bg-red-600 px-5 py-3 text-white"
+                                    >
+                                        Search on YouTube
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -253,23 +321,29 @@ export default async function MovieDetailsPage({
                         </h2>
 
                         <div className="grid grid-cols-2 gap-4">
-                            {movie.cast.map((actor) => (
+                            {cast.slice(0, 4).map((actor) => (
                                 <div
-                                    key={actor.name}
-                                    className="overflow-hidden rounded-3xl bg-zinc-900 transition hover:scale-105"
+                                    key={actor.id}
+                                    className="h-[325px] w-[250px] overflow-hidden rounded-3xl bg-zinc-900 transition duration-300 hover:scale-105"
                                 >
-                                    <img
-                                        src={actor.image}
-                                        alt={actor.name}
-                                        className="h-40 w-full object-cover"
-                                    />
+                                    <div className="aspect-square overflow-hidden rounded-3xl bg-zinc-900">
+                                        <img
+                                            src={
+                                                actor.profile_path
+                                                    ? `https://image.tmdb.org/t/p/w500${actor.profile_path}`
+                                                    : "/placeholder-person.jpg"
+                                            }
+                                            alt={actor.name}
+                                            className="h-full w-full object-cover"
+                                        />
+                                    </div>
 
-                                    <div className="p-3">
-                                        <h3 className="font-semibold text-white">
+                                    <div className="p-4">
+                                        <h3 className="truncate text-xl font-semibold text-white">
                                             {actor.name}
                                         </h3>
 
-                                        <p className="text-sm text-zinc-400">
+                                        <p className="truncate text-lg text-zinc-400">
                                             {actor.character}
                                         </p>
                                     </div>
@@ -280,38 +354,73 @@ export default async function MovieDetailsPage({
                 </div>
             </section>
 
-            <section className="bg-zinc-950 px-6 py-16 sm:px-10 lg:px-16">
+            <section
+                className="bg-zinc-950 px-6 py-16 sm:px-10 lg:px-16"
+                id="theater-section"
+            >
                 <h2 className="mb-8 text-3xl font-bold text-white">
                     Available In Theaters
                 </h2>
 
                 <div className="grid gap-6 lg:grid-cols-3">
-                    {movie.theaters.map((theater) => (
+                    {theaters.map((theater) => (
                         <div
                             key={theater.name}
-                            className="rounded-3xl bg-zinc-900 p-6"
+                            className="
+                relative overflow-hidden
+                rounded-3xl
+                border border-white/10
+                bg-white/5
+                p-8
+                backdrop-blur-2xl
+                transition-all duration-300
+                hover:-translate-y-2
+                hover:border-red-500/30
+                hover:shadow-[0_20px_60px_rgba(239,68,68,0.2)]
+            "
                         >
-                            <h3 className="text-xl font-bold text-white">
-                                {theater.name}
-                            </h3>
+                            {/* Glass Glow */}
+                            <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-red-500/5" />
 
-                            <p className="mt-1 text-zinc-400">
-                                {theater.location}
-                            </p>
+                            {/* Content */}
+                            <div className="relative z-10">
+                                <h3 className="text-3xl font-bold text-white">
+                                    {theater.name}
+                                </h3>
 
-                            <div className="mt-6 flex flex-wrap gap-3">
-                                {theater.timings.map((time) => (
-                                    <button
-                                        key={time}
-                                        className="rounded-xl border border-zinc-700 px-4 py-2 text-sm text-white transition hover:border-red-500 hover:bg-red-600"
-                                    >
-                                        {time}
-                                    </button>
-                                ))}
+                                <p className="mt-2 text-lg text-zinc-300">
+                                    📍 {theater.location}
+                                </p>
+
+                                <div className="mt-8 flex flex-wrap gap-3">
+                                    {theater.timings.map((time) => (
+                                        <Link
+                                            key={time}
+                                            href={`/booking/${id}/seats?theater=${encodeURIComponent(
+                                                theater.name,
+                                            )}&time=${encodeURIComponent(time)}`}
+                                            className="
+                                rounded-2xl
+                                border border-white/10
+                                bg-white/10
+                                px-5 py-3
+                                text-lg font-semibold text-white
+                                backdrop-blur-md
+                                transition-all duration-300
+                                hover:scale-105
+                                hover:border-red-500
+                                hover:bg-red-600
+                                hover:shadow-lg
+                            "
+                                        >
+                                            {time}
+                                        </Link>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     ))}
-                </div>
+                </div>~
             </section>
         </main>
     );
