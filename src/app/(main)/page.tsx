@@ -1,6 +1,8 @@
 import Navbar from "../../components/layout/navbar";
 import MovieCard from "../../components/ui/MovieCard";
 import { getNowPlayingMovies, getUpcomingMovies } from "../../lib/tmdb";
+import Link from "next/link";
+
 export const dynamic = "force-dynamic";
 export default async function HomePage() {
     const data1 = await getNowPlayingMovies();
@@ -72,13 +74,19 @@ export default async function HomePage() {
 
                                 {/* Buttons */}
                                 <div className="mt-10 flex flex-wrap gap-4">
-                                    <button className="cursor-pointer rounded-xl bg-orange-600 px-8 py-4 text-lg font-semibold text-white transition-all duration-300 hover:scale-105 hover:bg-orange-700">
+                                    <Link
+                                        href={`/movies/${heroMovie.id}`}
+                                        className="cursor-pointer rounded-xl bg-orange-600 px-8 py-4 text-lg font-semibold text-white transition-all duration-300 hover:scale-105 hover:bg-orange-700"
+                                    >
                                         Book Tickets
-                                    </button>
+                                    </Link>
 
-                                    <button className="rounded-xl cursor-pointer border border-white/10 bg-white/5 px-8 py-4 text-lg font-semibold text-white backdrop-blur-md transition-all duration-300 hover:border-white/30 hover:bg-white/10">
+                                    <Link
+                                        href={`/movies/${heroMovie.id}`}
+                                        className="cursor-pointer rounded-xl border border-white/10 bg-white/5 px-8 py-4 text-lg font-semibold text-white backdrop-blur-md transition-all duration-300 hover:border-white/30 hover:bg-white/10"
+                                    >
                                         Watch Trailer
-                                    </button>
+                                    </Link>
                                 </div>
                             </div>
                         </div>

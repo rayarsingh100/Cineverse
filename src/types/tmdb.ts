@@ -7,7 +7,13 @@ export type Movie = {
     vote_average: number;
     release_date: string;
     runtime?: number;
+    budget?: number;
     revenue?: number;
+    original_language?: string;
+    production_countries?: {
+        iso_3166_1: string;
+        name: string;
+    }[];
     genres?: Genre[];
 };
 

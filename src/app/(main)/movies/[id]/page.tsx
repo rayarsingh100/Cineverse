@@ -10,6 +10,7 @@ import type {
     Credits,
     VideosResponse,
 } from "../../../../types/tmdb";
+
 import { theaters } from "../../../../constants/movies";
 
 export default async function MovieDetailsPage({
@@ -17,49 +18,48 @@ export default async function MovieDetailsPage({
 }: {
     params: Promise<{ id: string }>;
 }) {
-   const { id } = await params;
+    const { id } = await params;
 
-   const movie = await getMovieDetails(id);
+    const movie = await getMovieDetails(id);
 
-   const staticMovie =
-       movie[
-           movie.title
-               .toLowerCase()
-               .replace(/:/g, "")
-               .replace(/\s+/g, "-") as keyof typeof movie
-       ];
+    const staticMovie =
+        movie[
+            movie.title
+                .toLowerCase()
+                .replace(/:/g, "")
+                .replace(/\s+/g, "-") as keyof typeof movie
+        ];
 
-   const credits: Credits = await getMovieCredits(id);
+    const credits: Credits = await getMovieCredits(id);
 
-   const videos: VideosResponse = await getMovieVideos(id);
-       console.log(movie.title);
-       console.log(movie.id);
-       console.log(videos.results);
-   const cast: CastMember[] = credits.cast.slice(0, 4);
+    const videos: VideosResponse = await getMovieVideos(id);
 
-   const director =
-       credits.crew?.find((person) => person.job === "Director")?.name || "N/A";
+    const cast: CastMember[] = credits.cast.slice(0, 4);
 
-   const writers =
-       credits.crew
-           ?.filter(
-               (person) =>
-                   person.job === "Writer" || person.job === "Screenplay",
-           )
-           .map((person) => person.name)
-           .join(", ") || "N/A";
+    const director =
+        credits.crew?.find((person) => person.job === "Director")?.name ||
+        "N/A";
 
-   const trailer = videos.results.find(
-       (video) => video.type === "Trailer" && video.site === "YouTube",
-   );
+    const writers =
+        credits.crew
+            ?.filter(
+                (person) =>
+                    person.job === "Writer" || person.job === "Screenplay",
+            )
+            .map((person) => person.name)
+            .join(", ") || "N/A";
 
-   if (!movie?.id) {
-       return (
-           <main className="flex min-h-screen items-center justify-center bg-black text-white">
-               <h1 className="text-4xl font-bold">Movie Not Found</h1>
-           </main>
-       );
-   }
+    const trailer = videos.results.find(
+        (video) => video.type === "Trailer" && video.site === "YouTube",
+    );
+
+    if (!movie?.id) {
+        return (
+            <main className="flex min-h-screen items-center justify-center bg-black text-white">
+                <h1 className="text-4xl font-bold">Movie Not Found</h1>
+            </main>
+        );
+    }
 
     return (
         <main className="relative min-h-screen overflow-hidden bg-zinc-950">
@@ -258,7 +258,7 @@ export default async function MovieDetailsPage({
                         <div className="min-h-64 rounded-3xl bg-zinc-900 p-6">
                             {/* Description */}
                             <p className="text-zinc-300 leading-relaxed">
-                                {movie.description}
+                                {movie.overview}
                             </p>
 
                             {/* Movie Details */}
@@ -271,7 +271,8 @@ export default async function MovieDetailsPage({
                                     <span className="text-zinc-500">:</span>
 
                                     <span className="text-white">
-                                        {movie.language}
+                                        {movie.original_language?.toUpperCase() ||
+                                            "N/A"}
                                     </span>
                                 </div>
 
@@ -283,7 +284,14 @@ export default async function MovieDetailsPage({
                                     <span className="text-zinc-500">:</span>
 
                                     <span className="text-white">
-                                        {movie.country}
+                                        {movie.production_countries
+                                            ?.map(
+                                                (country: {
+                                                    iso_3166_1: string;
+                                                    name: string;
+                                                }) => country.name,
+                                            )
+                                            .join(", ") || "N/A"}
                                     </span>
                                 </div>
 
@@ -295,7 +303,9 @@ export default async function MovieDetailsPage({
                                     <span className="text-zinc-500">:</span>
 
                                     <span className="text-white">
-                                        {movie.budget}
+                                        {movie.budget && movie.budget > 0
+                                            ? `$${movie.budget.toLocaleString()}`
+                                            : "N/A"}
                                     </span>
                                 </div>
 
@@ -307,7 +317,9 @@ export default async function MovieDetailsPage({
                                     <span className="text-zinc-500">:</span>
 
                                     <span className="text-white">
-                                        {movie.revenue}
+                                        {movie.revenue && movie.revenue > 0
+                                            ? `$${movie.revenue.toLocaleString()}`
+                                            : "N/A"}
                                     </span>
                                 </div>
                             </div>
@@ -361,7 +373,6 @@ export default async function MovieDetailsPage({
                 <h2 className="mb-8 text-3xl font-bold text-white">
                     Available In Theaters
                 </h2>
-
                 <div className="grid gap-6 lg:grid-cols-3">
                     {theaters.map((theater) => (
                         <div
@@ -420,7 +431,7 @@ export default async function MovieDetailsPage({
                             </div>
                         </div>
                     ))}
-                </div>~
+                </div>
             </section>
         </main>
     );
