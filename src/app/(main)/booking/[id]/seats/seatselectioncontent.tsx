@@ -1,10 +1,41 @@
 "use client";
 
-import { useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
-import { useRouter } from "next/navigation";
+import { useSyncExternalStore, useState } from "react";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 
-    export default function SeatPage({
+type Booking = {
+    id: string;
+    movie: string | null;
+    theater: string | null;
+    time: string | null;
+    seats: string | null;
+    total: string | null;
+    payment?: string | null;
+};
+
+const emptyBookings: Booking[] = [];
+
+function subscribeToBookings(callback: () => void) {
+    window.addEventListener("storage", callback);
+
+    return () => {
+        window.removeEventListener("storage", callback);
+    };
+}
+
+function getBookingsSnapshot() {
+    try {
+        return localStorage.getItem("bookings") || "[]";
+    } catch {
+        return "[]";
+    }
+}
+
+function getBookingsServerSnapshot() {
+    return "[]";
+}
+
+export default function SeatPage({
     movieTitle,
     posterPath,
 }: {
@@ -19,9 +50,36 @@ import { useRouter } from "next/navigation";
     const theater = searchParams.get("theater");
     const time = searchParams.get("time");
 
-    const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
+    const bookingsString = useSyncExternalStore(
+        subscribeToBookings,
+        getBookingsSnapshot,
+        getBookingsServerSnapshot,
+    );
 
-    const bookedSeats = ["A4", "B3", "C6", "F9", "J15"];
+    const bookings: Booking[] = (() => {
+        try {
+            return JSON.parse(bookingsString);
+        } catch {
+            return emptyBookings;
+        }
+    })();
+
+    const bookedSeats = bookings
+        .filter(
+            (booking) =>
+                booking.movie === id &&
+                booking.theater === theater &&
+                booking.time === time,
+        )
+        .flatMap((booking) =>
+            booking.seats
+                ? booking.seats.split(",").map((seat) => seat.trim())
+                : [],
+        );
+
+    const uniqueBookedSeats = [...new Set(bookedSeats)];
+
+    const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
 
     const seatCategories = [
         {
@@ -57,9 +115,17 @@ import { useRouter } from "next/navigation";
     const getSeatPrice = (seatId: string) => {
         const row = seatId[0];
 
-        if (["A", "B"].includes(row)) return 500;
-        if (["C", "D"].includes(row)) return 350;
-        if (["E", "F", "G", "H"].includes(row)) return 250;
+        if (["A", "B"].includes(row)) {
+            return 500;
+        }
+
+        if (["C", "D"].includes(row)) {
+            return 350;
+        }
+
+        if (["E", "F", "G", "H"].includes(row)) {
+            return 250;
+        }
 
         return 180;
     };
@@ -69,10 +135,29 @@ import { useRouter } from "next/navigation";
         0,
     );
 
+    const toggleSeat = (seatId: string) => {
+        if (uniqueBookedSeats.includes(seatId)) {
+            return;
+        }
+
+        setSelectedSeats((currentSeats) => {
+            if (currentSeats.includes(seatId)) {
+                return currentSeats.filter((seat) => seat !== seatId);
+            }
+
+            return [...currentSeats, seatId];
+        });
+    };
+
+    const totalSeats = 184;
+
+    const availableSeats = totalSeats - uniqueBookedSeats.length;
+
     return (
         <main className="min-h-screen bg-black px-8 py-10 text-white lg:px-16">
             {/* Top Section */}
             <div className="grid gap-8 lg:grid-cols-2">
+                {/* Movie Information */}
                 <div className="flex gap-6 rounded-3xl border border-white/10 bg-zinc-900/60 p-6 backdrop-blur-md">
                     <img
                         src={`https://image.tmdb.org/t/p/w500${posterPath}`}
@@ -83,9 +168,13 @@ import { useRouter } from "next/navigation";
                     <div className="flex flex-col justify-center space-y-4">
                         <h1 className="text-4xl font-bold">{movieTitle}</h1>
 
-                        <p className="text-zinc-400">📍 {theater}</p>
+                        <p className="text-zinc-400">
+                            📍 {theater || "Theater not available"}
+                        </p>
 
-                        <p className="text-zinc-400">🕒 {time}</p>
+                        <p className="text-zinc-400">
+                            🕒 {time || "Showtime not available"}
+                        </p>
                     </div>
                 </div>
 
@@ -95,10 +184,26 @@ import { useRouter } from "next/navigation";
 
                     <div className="space-y-5">
                         <div className="flex justify-between text-zinc-400">
-                            <span>Seats</span>
+                            <span>Seats Selected</span>
 
                             <span className="text-white">
                                 {selectedSeats.length}
+                            </span>
+                        </div>
+
+                        <div className="flex justify-between text-zinc-400">
+                            <span>Available Seats</span>
+
+                            <span className="text-green-500">
+                                {availableSeats}
+                            </span>
+                        </div>
+
+                        <div className="flex justify-between text-zinc-400">
+                            <span>Booked Seats</span>
+
+                            <span className="text-red-500">
+                                {uniqueBookedSeats.length}
                             </span>
                         </div>
 
@@ -168,7 +273,7 @@ import { useRouter } from "next/navigation";
                                         const seatId = `${row}${index + 1}`;
 
                                         const isBooked =
-                                            bookedSeats.includes(seatId);
+                                            uniqueBookedSeats.includes(seatId);
 
                                         const isSelected =
                                             selectedSeats.includes(seatId);
@@ -176,33 +281,28 @@ import { useRouter } from "next/navigation";
                                         return (
                                             <button
                                                 key={seatId}
+                                                type="button"
                                                 disabled={isBooked}
-                                                onClick={() => {
-                                                    if (isSelected) {
-                                                        setSelectedSeats(
-                                                            selectedSeats.filter(
-                                                                (seat) =>
-                                                                    seat !==
-                                                                    seatId,
-                                                            ),
-                                                        );
-                                                    } else {
-                                                        setSelectedSeats([
-                                                            ...selectedSeats,
-                                                            seatId,
-                                                        ]);
-                                                    }
-                                                }}
-                                                className={`
-                                                flex h-10 w-10 items-center justify-center rounded-lg border text-sm transition-all duration-300 hover:scale-110
-                                                ${
-                                                    isBooked
-                                                        ? "cursor-not-allowed border-zinc-700 bg-zinc-700 text-zinc-400"
-                                                        : isSelected
-                                                          ? "border-yellow-500 bg-yellow-500 text-black"
-                                                          : category.color
+                                                onClick={() =>
+                                                    toggleSeat(seatId)
                                                 }
-                                            `}
+                                                title={
+                                                    isBooked
+                                                        ? `${seatId} is already booked`
+                                                        : `${seatId} - ₹${getSeatPrice(
+                                                              seatId,
+                                                          )}`
+                                                }
+                                                className={`
+                                                                flex h-10 w-10 items-center justify-center rounded-lg border text-sm transition-all duration-300
+                                                                ${
+                                                                    isBooked
+                                                                        ? "cursor-not-allowed border-zinc-700 bg-zinc-700 text-zinc-400"
+                                                                        : isSelected
+                                                                          ? "scale-110 border-yellow-500 bg-yellow-500 text-black"
+                                                                          : `${category.color} hover:scale-110`
+                                                                }
+                                                            `}
                                             >
                                                 {index + 1}
                                             </button>
@@ -239,11 +339,16 @@ import { useRouter } from "next/navigation";
                     </div>
 
                     <button
+                        type="button"
                         disabled={selectedSeats.length === 0}
                         onClick={() =>
                             router.push(
-                                `/checkout?movie=${id}&theater=${theater}&time=${time}&seats=${selectedSeats.join(
-                                    ",",
+                                `/checkout?movie=${id}&theater=${encodeURIComponent(
+                                    theater || "",
+                                )}&time=${encodeURIComponent(
+                                    time || "",
+                                )}&seats=${encodeURIComponent(
+                                    selectedSeats.join(","),
                                 )}&total=${totalPrice}`,
                             )
                         }
