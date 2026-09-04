@@ -5,40 +5,118 @@ import { useEffect, useState } from "react";
 
 type Booking = {
     id: string;
-    movie: string | null;
-    theater: string | null;
-    time: string | null;
-    seats: string | null;
-    total: string | null;
+    movieId: string;
+    theater: string;
+    time: string;
+    seats: string;
+    total: string;
     payment?: string | null;
+    createdAt?: string;
 };
 
 type MovieInfo = {
     title: string;
 };
 
-export default function MyBookingsPage() {
-    const [bookings, setBookings] = useState<Booking[]>(() => {
-        if (typeof window === "undefined") {
-            return [];
-        }
+type SessionUser = {
+    userId: string;
+    email: string;
+    name: string;
+};
 
-        try {
-            return JSON.parse(localStorage.getItem("bookings") || "[]");
-        } catch {
-            return [];
-        }
-    });
+export default function MyBookingsPage() {
+    const [user, setUser] = useState<SessionUser | null>(null);
+    const [authLoading, setAuthLoading] = useState(true);
+
+    const [bookings, setBookings] = useState<Booking[]>([]);
+    const [bookingsLoading, setBookingsLoading] = useState(false);
 
     const [movieTitles, setMovieTitles] = useState<Record<string, string>>({});
 
+    const [deletingBooking, setDeletingBooking] = useState<string | null>(null);
+
+    // =====================================================
+    // CHECK AUTHENTICATION
+    // =====================================================
+
     useEffect(() => {
-        const loadMovieTitles = async () => {
+        async function checkAuthentication() {
+            try {
+                const response = await fetch("/api/auth/me");
+
+                if (!response.ok) {
+                    window.location.href = "/login";
+                    return;
+                }
+
+                const data = await response.json();
+
+                if (!data.authenticated || !data.user) {
+                    window.location.href = "/login";
+                    return;
+                }
+
+                setUser(data.user);
+            } catch (error) {
+                console.error("Authentication check failed:", error);
+                window.location.href = "/login";
+            } finally {
+                setAuthLoading(false);
+            }
+        }
+
+        checkAuthentication();
+    }, []);
+
+    // =====================================================
+    // LOAD BOOKINGS FROM POSTGRESQL
+    // =====================================================
+
+    useEffect(() => {
+        if (!user) {
+            return;
+        }
+
+        async function loadBookings() {
+            try {
+                setBookingsLoading(true);
+
+                const response = await fetch("/api/bookings");
+
+                if (!response.ok) {
+                    throw new Error("Failed to load bookings");
+                }
+
+                const data = await response.json();
+
+                setBookings(data.bookings ?? []);
+            } catch (error) {
+                console.error("Failed to load bookings:", error);
+                setBookings([]);
+            } finally {
+                setBookingsLoading(false);
+            }
+        }
+
+        loadBookings();
+    }, [user]);
+
+    // =====================================================
+    // LOAD MOVIE TITLES
+    // =====================================================
+
+    useEffect(() => {
+        async function loadMovieTitles() {
             const movieIds = bookings
-                .map((booking) => booking.movie)
-                .filter((movieId): movieId is string => Boolean(movieId));
+                .map((booking) => booking.movieId)
+                .filter(Boolean);
 
             const uniqueMovieIds = [...new Set(movieIds)];
+
+            if (uniqueMovieIds.length === 0) {
+                setMovieTitles({});
+                return;
+            }
 
             const titleMap: Record<string, string> = {};
 
@@ -47,7 +125,9 @@ export default function MyBookingsPage() {
                     try {
                         const response = await fetch(`/api/movies/${movieId}`);
 
-                        if (!response.ok) return;
+                        if (!response.ok) {
+                            return;
+                        }
 
                         const movie: MovieInfo = await response.json();
 
@@ -62,38 +142,65 @@ export default function MyBookingsPage() {
             );
 
             setMovieTitles(titleMap);
-        };
-
-        if (bookings.length > 0) {
-            loadMovieTitles();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    const deleteBooking = (id: string) => {
-        const updatedBookings = bookings.filter((booking) => booking.id !== id);
-
-        localStorage.setItem("bookings", JSON.stringify(updatedBookings));
-
-        setBookings(updatedBookings);
-    };
-
-    const getMovieTitle = (movieId: string | null) => {
-        if (!movieId) {
-            return "Unknown Movie";
         }
 
+        loadMovieTitles();
+    }, [bookings]);
+
+    // =====================================================
+    // DELETE BOOKING FROM POSTGRESQL
+    // =====================================================
+
+    async function deleteBooking(id: string) {
+        try {
+            setDeletingBooking(id);
+
+            const response = await fetch(`/api/bookings/${id}`, {
+                method: "DELETE",
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to delete booking");
+            }
+
+            setBookings((currentBookings) =>
+                currentBookings.filter((booking) => booking.id !== id),
+            );
+        } catch (error) {
+            console.error("Delete booking error:", error);
+
+            alert(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to delete booking",
+            );
+        } finally {
+            setDeletingBooking(null);
+        }
+    }
+
+    // =====================================================
+    // GET MOVIE TITLE
+    // =====================================================
+
+    function getMovieTitle(movieId: string) {
         return movieTitles[movieId] || "Loading movie...";
-    };
+    }
 
-    const getTicketLink = (booking: Booking) => {
+    // =====================================================
+    // GET TICKET LINK
+    // =====================================================
+
+    function getTicketLink(booking: Booking) {
         const params = new URLSearchParams();
 
-        params.set("movie", booking.movie || "");
-        params.set("theater", booking.theater || "");
-        params.set("time", booking.time || "");
-        params.set("seats", booking.seats || "");
-        params.set("total", booking.total || "");
+        params.set("movie", booking.movieId);
+        params.set("theater", booking.theater);
+        params.set("time", booking.time);
+        params.set("seats", booking.seats);
+        params.set("total", booking.total);
         params.set("bookingId", booking.id);
 
         if (booking.payment) {
@@ -101,12 +208,35 @@ export default function MyBookingsPage() {
         }
 
         return `/booking-success?${params.toString()}`;
-    };
+    }
+
+    // =====================================================
+    // AUTH LOADING SCREEN
+    // =====================================================
+
+    if (authLoading) {
+        return (
+            <main className="flex min-h-screen items-center justify-center bg-black text-white">
+                <div className="text-center">
+                    <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-zinc-700 border-t-red-500" />
+
+                    <p className="mt-5 text-sm text-zinc-400">
+                        Checking your account...
+                    </p>
+                </div>
+            </main>
+        );
+    }
+
+    // =====================================================
+    // PAGE
+    // =====================================================
 
     return (
         <main className="min-h-screen bg-black px-6 py-10 text-white lg:px-12">
             <div className="mx-auto max-w-6xl">
                 {/* Header */}
+
                 <div className="mb-12">
                     <p className="text-sm font-semibold tracking-[0.3em] text-red-500">
                         CINEVERSE
@@ -114,13 +244,30 @@ export default function MyBookingsPage() {
 
                     <h1 className="mt-3 text-5xl font-black">My Bookings</h1>
 
-                    <p className="mt-3 text-zinc-400">
-                        Manage your movie tickets and bookings.
-                    </p>
+                    {user && (
+                        <p className="mt-3 text-zinc-400">
+                            Welcome back,{" "}
+                            <span className="font-semibold text-white">
+                                {user.name}
+                            </span>
+                            . Manage your movie tickets and bookings.
+                        </p>
+                    )}
                 </div>
 
-                {bookings.length === 0 ? (
+                {/* Booking Loading */}
+
+                {bookingsLoading ? (
+                    <div className="rounded-[32px] border border-white/10 bg-zinc-900 p-12 text-center shadow-2xl">
+                        <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-zinc-700 border-t-red-500" />
+
+                        <p className="mt-5 text-zinc-400">
+                            Loading your bookings...
+                        </p>
+                    </div>
+                ) : bookings.length === 0 ? (
                     /* Empty State */
+
                     <div className="rounded-[32px] border border-white/10 bg-zinc-900 p-12 text-center shadow-2xl">
                         <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-500/10 text-4xl">
                             🎬
@@ -143,6 +290,7 @@ export default function MyBookingsPage() {
                     </div>
                 ) : (
                     /* Booking List */
+
                     <div className="space-y-6">
                         {bookings.map((booking) => (
                             <div
@@ -151,9 +299,10 @@ export default function MyBookingsPage() {
                             >
                                 <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
                                     {/* Booking Information */}
+
                                     <div className="min-w-0">
                                         <h2 className="text-3xl font-bold">
-                                            {getMovieTitle(booking.movie)}
+                                            {getMovieTitle(booking.movieId)}
                                         </h2>
 
                                         <div className="mt-5 space-y-3">
@@ -184,8 +333,10 @@ export default function MyBookingsPage() {
                                     </div>
 
                                     {/* Booking Actions */}
+
                                     <div className="w-full lg:w-80">
                                         {/* Booking ID */}
+
                                         <div className="mb-5 rounded-2xl border border-white/10 bg-black/30 p-4">
                                             <p className="text-sm text-zinc-500">
                                                 Booking ID
@@ -197,6 +348,7 @@ export default function MyBookingsPage() {
                                         </div>
 
                                         {/* View Ticket */}
+
                                         <Link
                                             href={getTicketLink(booking)}
                                             className="block w-full rounded-2xl bg-red-600 px-6 py-4 text-center font-semibold transition hover:bg-red-700"
@@ -205,14 +357,20 @@ export default function MyBookingsPage() {
                                         </Link>
 
                                         {/* Delete */}
+
                                         <button
                                             type="button"
                                             onClick={() =>
                                                 deleteBooking(booking.id)
                                             }
-                                            className="mt-4 w-full rounded-2xl border border-red-600 py-4 font-semibold text-red-500 transition hover:bg-red-600 hover:text-white"
+                                            disabled={
+                                                deletingBooking === booking.id
+                                            }
+                                            className="mt-4 w-full rounded-2xl border border-red-600 py-4 font-semibold text-red-500 transition hover:bg-red-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                                         >
-                                            Delete Booking
+                                            {deletingBooking === booking.id
+                                                ? "Deleting..."
+                                                : "Delete Booking"}
                                         </button>
                                     </div>
                                 </div>

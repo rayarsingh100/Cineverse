@@ -49,21 +49,68 @@ export default function CheckoutPage() {
     const handlePayment = async () => {
         if (isProcessing) return;
 
+        if (!movieId || !theater || !time || !seats) {
+            alert("Booking details are missing.");
+            return;
+        }
+
         setIsProcessing(true);
 
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        try {
+            // Simulate payment processing
+            await new Promise((resolve) => setTimeout(resolve, 2000));
 
-        router.push(
-            `/booking-success?movie=${movieId}&theater=${encodeURIComponent(
-                theater || "",
-            )}&time=${encodeURIComponent(
-                time || "",
-            )}&seats=${encodeURIComponent(
-                seats || "",
-            )}&total=${grandTotal}&payment=${encodeURIComponent(
-                selectedPayment,
-            )}`,
-        );
+            // Save booking to PostgreSQL
+            const response = await fetch("/api/bookings", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    movieId,
+                    theater,
+                    time,
+                    seats,
+                    total: grandTotal,
+                    payment: selectedPayment,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || "Failed to create booking");
+            }
+
+            const bookingId = data.booking?.id;
+
+            if (!bookingId) {
+                throw new Error("Booking was created without an ID.");
+            }
+
+            // Redirect to ticket page
+            router.push(
+                `/booking-success?movie=${encodeURIComponent(
+                    movieId,
+                )}&theater=${encodeURIComponent(
+                    theater,
+                )}&time=${encodeURIComponent(time)}&seats=${encodeURIComponent(
+                    seats,
+                )}&total=${grandTotal}&payment=${encodeURIComponent(
+                    selectedPayment,
+                )}&bookingId=${encodeURIComponent(bookingId)}`,
+            );
+        } catch (error) {
+            console.error("Payment / booking error:", error);
+
+            alert(
+                error instanceof Error
+                    ? error.message
+                    : "Something went wrong while processing your booking.",
+            );
+
+            setIsProcessing(false);
+        }
     };
 
     return (
@@ -141,7 +188,8 @@ export default function CheckoutPage() {
                                     <input
                                         type="text"
                                         placeholder="Enter your full name"
-                                        className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 p-5 outline-none transition focus:border-red-500"
+                                        disabled={isProcessing}
+                                        className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 p-5 outline-none transition focus:border-red-500 disabled:opacity-50"
                                     />
                                 </div>
 
@@ -153,7 +201,8 @@ export default function CheckoutPage() {
                                     <input
                                         type="email"
                                         placeholder="Enter your email"
-                                        className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 p-5 outline-none transition focus:border-red-500"
+                                        disabled={isProcessing}
+                                        className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 p-5 outline-none transition focus:border-red-500 disabled:opacity-50"
                                     />
                                 </div>
 
@@ -165,7 +214,8 @@ export default function CheckoutPage() {
                                     <input
                                         type="tel"
                                         placeholder="Enter your phone number"
-                                        className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 p-5 outline-none transition focus:border-red-500"
+                                        disabled={isProcessing}
+                                        className="w-full rounded-2xl border border-zinc-700 bg-zinc-950 p-5 outline-none transition focus:border-red-500 disabled:opacity-50"
                                     />
                                 </div>
                             </div>
