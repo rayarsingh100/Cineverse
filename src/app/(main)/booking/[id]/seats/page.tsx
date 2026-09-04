@@ -1,7 +1,16 @@
 import { Suspense } from "react";
-import SeatSelectionContent from "../seats/seatselectioncontent";
+import SeatSelectionContent from "./seatselectioncontent";
+import { getMovieDetails } from "../../../../../lib/tmdb";
 
-export default function Page() {
+export default async function Page({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}) {
+    const { id } = await params;
+
+    const movie = await getMovieDetails(id);
+
     return (
         <Suspense
             fallback={
@@ -10,7 +19,10 @@ export default function Page() {
                 </main>
             }
         >
-            <SeatSelectionContent />
+            <SeatSelectionContent
+                movieTitle={movie.title}
+                posterPath={movie.poster_path}
+            />
         </Suspense>
     );
 }

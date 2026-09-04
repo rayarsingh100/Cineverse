@@ -4,8 +4,13 @@ import { useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 
-export default function SeatPage() {
-
+    export default function SeatPage({
+    movieTitle,
+    posterPath,
+}: {
+    movieTitle: string;
+    posterPath: string;
+}) {
     const router = useRouter();
     const params = useParams();
     const searchParams = useSearchParams();
@@ -70,15 +75,13 @@ export default function SeatPage() {
             <div className="grid gap-8 lg:grid-cols-2">
                 <div className="flex gap-6 rounded-3xl border border-white/10 bg-zinc-900/60 p-6 backdrop-blur-md">
                     <img
-                        src="https://rukminim2.flixcart.com/image/480/640/jr3t5e80/poster/7/g/a/medium-the-flash-tv-show-poster-for-room-office-13-inch-x-19-original-imafcz3fpjgwu8tj.jpeg?q=90"
-                        alt="Movie"
+                        src={`https://image.tmdb.org/t/p/w500${posterPath}`}
+                        alt={movieTitle}
                         className="h-48 w-32 rounded-2xl object-cover"
                     />
 
                     <div className="flex flex-col justify-center space-y-4">
-                        <h1 className="text-4xl font-bold capitalize">
-                            {id.replace("-", " ")}
-                        </h1>
+                        <h1 className="text-4xl font-bold">{movieTitle}</h1>
 
                         <p className="text-zinc-400">📍 {theater}</p>
 
@@ -231,7 +234,7 @@ export default function SeatPage() {
                         <p className="text-zinc-400">Total Payable</p>
 
                         <h2 className="text-4xl font-bold text-red-500">
-                            ₹{selectedSeats.length * 250}
+                            ₹{totalPrice}
                         </h2>
                     </div>
 
