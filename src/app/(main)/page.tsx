@@ -1,10 +1,7 @@
 import Navbar from "../../components/layout/navbar";
 import MovieCard from "../../components/ui/MovieCard";
 import { getNowPlayingMovies, getUpcomingMovies } from "../../lib/tmdb";
-import type { Movie } from "../../types/tmdb";
-
-
-
+export const dynamic = "force-dynamic";
 export default async function HomePage() {
     const data1 = await getNowPlayingMovies();
 
